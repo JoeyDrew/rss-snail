@@ -9,12 +9,13 @@ import (
   	"github.com/sendgrid/sendgrid-go"
 	"github.com/sendgrid/sendgrid-go/helpers/mail"
 	"github.com/mmcdole/gofeed"
-    //"github.com/mmcdole/gofeed/rss"
 	"database/sql"
 	_ "github.com/mattn/go-sqlite3"
+	"rss-snail/models"
 
 )
 
+// refactor into models.go
 type rssFeed struct {
 	feed *gofeed.Feed
 	To string
@@ -24,15 +25,20 @@ type rssFeed struct {
 
 func main() {
 
-	database, _ := sql.Open("sqlite3", "./testdb.db")
-	statement, _ := database.Prepare("CREATE TABLE IF NOT EXISTS people (id INTEGER PRIMARY KEY, firstname TEXT, lastname TEXT)")
-    statement.Exec()
+	models.DB, err := sql.Open("sqlite3", "./testdb.db")
 
-	var feed = NewFeed()
+	// initialize our 3 tables, I don't think this will work but it's a nice sentiment
+	statement, _ := database.Prepare("CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, email TEXT) ;
+	                                  CREATE TABLE IF NOT EXISTS userfeeds (userid INTEGER PRIMARY KEY, feedid INTEGER PRIMARY KEY) ;
+	                                  CREATE TABLE IF NOT EXISTS feeds (id INTEGER PRIMARY KEY, Url TEXT)")
+	statement.Exec()
+
+	// this will get refactored
+	/* var feed = NewFeed()
 	feed.To = os.Getenv("SENDGRID_TO")
 	feed.From = os.Getenv("SENDGRID_FROM")
 
-	//sendMail(feed)
+	sendMail(feed) */
 
 }
 
