@@ -10,6 +10,8 @@ import (
 	"github.com/sendgrid/sendgrid-go/helpers/mail"
 	"github.com/mmcdole/gofeed"
     //"github.com/mmcdole/gofeed/rss"
+	"database/sql"
+	_ "github.com/mattn/go-sqlite3"
 
 )
 
@@ -22,21 +24,25 @@ type rssFeed struct {
 
 func main() {
 
+	database, _ := sql.Open("sqlite3", "./testdb.db")
+	statement, _ := database.Prepare("CREATE TABLE IF NOT EXISTS people (id INTEGER PRIMARY KEY, firstname TEXT, lastname TEXT)")
+    statement.Exec()
+
 	var feed = NewFeed()
 	feed.To = os.Getenv("SENDGRID_TO")
 	feed.From = os.Getenv("SENDGRID_FROM")
 
-	sendMail(feed)
+	//sendMail(feed)
 
 }
 
 func NewFeed() *rssFeed {
 
 	fp := gofeed.NewParser()
-	newfeed, _ := fp.ParseURL("https://sanantonioreport.org/feed/")
+	newFeed, _ := fp.ParseURL("https://sanantonioreport.org/feed/")
 
 	return &rssFeed{
-		feed: newfeed,
+		feed: newFeed,
 	}
 
 }
@@ -58,5 +64,5 @@ func sendMail(rf *rssFeed) {
 		fmt.Println(response.Body)
 		fmt.Println(response.Headers)
 	}
-
+	
 }
