@@ -3,42 +3,65 @@ package main
 import (
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 
 	"github.com/mmcdole/gofeed"
 	"github.com/sendgrid/sendgrid-go"
 	"github.com/sendgrid/sendgrid-go/helpers/mail"
+	"go.uber.org/zap"
 )
 
 type rssFeed struct {
 	feed *gofeed.Feed
 	To   string
 	From string
+
+	Logger *zap.Logger
 }
 
 func main() {
+	logger, err := zap.NewDevelopment()
+	if err != nil {
+		log.Fatalf("can't initialize logger: %v", err)
+	}
+	if logger == nil {
+		log.Fatal("null logger")
+	}
 
-	var feed = NewFeed()
+	defer func(logger *zap.Logger) {
+		err := logger.Sync()
+		if err != nil {
+			logger.Fatal("couldn't close logger", zap.Error(err))
+		}
+	}(logger)
+
+	var feed = NewFeed(logger)
+	if feed == nil {
+		logger.Fatal("couldn't initialize new feed")
+	}
 	feed.To = os.Getenv("SENDGRID_TO")
 	feed.From = os.Getenv("SENDGRID_FROM")
 
 	sendMail(feed)
-
 }
 
-func NewFeed() *rssFeed {
-
+func NewFeed(logger *zap.Logger) *rssFeed {
 	fp := gofeed.NewParser()
-	newfeed, _ := fp.ParseURL("https://sanantonioreport.org/feed/")
+	newfeed, err := fp.ParseURL("https://sanantonioreport.org/feed/")
+	if err != nil {
+		logger.Error("couldn't parse RSS URL", zap.Error(err))
+		return nil
+	}
 
 	return &rssFeed{
 		feed: newfeed,
-	}
 
+		Logger: logger,
+	}
 }
 
 func sendMail(rf *rssFeed) {
-
 	from := mail.NewEmail("RSS Snail", rf.From)
 	subject := "RSS Digest"
 	to := mail.NewEmail("", rf.To)
@@ -46,13 +69,32 @@ func sendMail(rf *rssFeed) {
 	htmlContent := fmt.Sprintf("<strong>%s</strong>", rf.feed.Title)
 	message := mail.NewSingleEmail(from, subject, to, plainTextContent, htmlContent)
 	client := sendgrid.NewSendClient(os.Getenv("SENDGRID_API_KEY"))
+
 	response, err := client.Send(message)
 	if err != nil {
-		log.Println(err)
+		rf.Logger.Error("couldn't send email", zap.Error(err))
 	} else {
-		fmt.Println(response.StatusCode)
-		fmt.Println(response.Body)
-		fmt.Println(response.Headers)
-	}
+		responseStatusCode := response.StatusCode
 
+		// Abstract structure logging data, so we don't need to repeat it
+		loggerFields := zap.Fields(
+			zap.Int("Response status code", responseStatusCode),
+			zap.String("Response status text", http.StatusText(responseStatusCode)),
+			zap.String("Response body", response.Body),
+			zap.Reflect("Response headers", response.Headers),
+		)
+		responseLogger := rf.Logger.WithOptions(loggerFields)
+
+		if responseStatusCode >= 200 && responseStatusCode < 300 {
+			responseLogger.Info("Successfully sent email")
+		} else if responseStatusCode >= 300 && responseStatusCode < 400 {
+			responseLogger.Warn("Request was redirected")
+		} else if responseStatusCode >= 400 && responseStatusCode < 500 {
+			responseLogger.Error("Client error, check response body for more info")
+		} else if responseStatusCode >= 500 && responseStatusCode < 600 {
+			responseLogger.Error("Client error, check response body for more info")
+		} else {
+			responseLogger.Warn("Unknown response code, review status code and response body for more info")
+		}
+	}
 }
