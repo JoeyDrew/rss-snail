@@ -1,23 +1,19 @@
 package main
 
 import (
-
 	"fmt"
 	"log"
 	"os"
 
-  	"github.com/sendgrid/sendgrid-go"
-	"github.com/sendgrid/sendgrid-go/helpers/mail"
 	"github.com/mmcdole/gofeed"
-    //"github.com/mmcdole/gofeed/rss"
-
+	"github.com/sendgrid/sendgrid-go"
+	"github.com/sendgrid/sendgrid-go/helpers/mail"
 )
 
 type rssFeed struct {
 	feed *gofeed.Feed
-	To string
+	To   string
 	From string
-
 }
 
 func main() {
