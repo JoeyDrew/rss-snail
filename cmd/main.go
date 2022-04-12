@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/mmcdole/gofeed"
 	"github.com/sendgrid/sendgrid-go"
@@ -66,8 +67,25 @@ func sendMail(rf *rssFeed) {
 	subject := "RSS Digest"
 	to := mail.NewEmail("", rf.To)
 	plainTextContent := rf.feed.Title
-	htmlContent := fmt.Sprintf("<strong>%s</strong>", rf.feed.Title)
-	message := mail.NewSingleEmail(from, subject, to, plainTextContent, htmlContent)
+
+	var htmlContentBuilder strings.Builder
+	htmlContentBuilder.WriteString("<h1>RSS Snail</h1>")
+	htmlContentBuilder.WriteString(fmt.Sprintf("<h2>%s</h2>", rf.feed.Title))
+
+	feedItems := rf.feed.Items
+	if feedItems == nil {
+		rf.Logger.Warn("feed doesn't have any items", zap.String("Feed title", rf.feed.Title))
+	} else {
+		if len(feedItems) > 5 {
+			feedItems = feedItems[:5]
+		}
+		htmlContentBuilder.WriteString(fmt.Sprintf("<h3>Latest %d articles</h3>", len(feedItems)))
+		for _, item := range feedItems {
+			htmlContentBuilder.WriteString(fmt.Sprintf("<p><a href=\"%s\">%s</a></p>", item.Link, item.Title))
+		}
+	}
+
+	message := mail.NewSingleEmail(from, subject, to, plainTextContent, htmlContentBuilder.String())
 	client := sendgrid.NewSendClient(os.Getenv("SENDGRID_API_KEY"))
 
 	response, err := client.Send(message)
