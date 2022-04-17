@@ -7,6 +7,8 @@ import (
 	"os"
 	"strings"
 
+	"github.com/JoeyDrew/rss-snail/internal"
+
 	"github.com/mmcdole/gofeed"
 	"github.com/sendgrid/sendgrid-go"
 	"github.com/sendgrid/sendgrid-go/helpers/mail"
@@ -33,13 +35,21 @@ func main() {
 	defer func(logger *zap.Logger) {
 		err := logger.Sync()
 		if err != nil {
-			logger.Fatal("couldn't close logger", zap.Error(err))
+			logger.Error("couldn't close logger", zap.Error(err))
 		}
 	}(logger)
 
-	var feed = NewFeed(logger)
-	if feed == nil {
-		logger.Fatal("couldn't initialize new feed")
+	s, err := internal.NewSqliteDao("identifier.sqlite")
+	if err != nil {
+		logger.Fatal("couldn't provision sqlite connection", zap.Error(err))
+	}
+	if s != nil {
+		defer s.Close()
+	}
+
+	feed, err := NewFeed(s, logger)
+	if err != nil {
+		logger.Fatal("couldn't initialize new feed", zap.Error(err))
 	}
 	feed.To = os.Getenv("SENDGRID_TO")
 	feed.From = os.Getenv("SENDGRID_FROM")
@@ -47,19 +57,30 @@ func main() {
 	sendMail(feed)
 }
 
-func NewFeed(logger *zap.Logger) *rssFeed {
+func NewFeed(s internal.Dao, logger *zap.Logger) (*rssFeed, error) {
 	fp := gofeed.NewParser()
-	newfeed, err := fp.ParseURL("https://sanantonioreport.org/feed/")
+	if err := s.AddFeed("https://sanantonioreport.org/feed/"); err != nil {
+		return nil, err
+	}
+
+	// There should only be one URL currently
+	urls, err := s.GetFeeds()
+	if err != nil {
+		return nil, err
+	}
+	feedUrl := urls[0].Url
+
+	newfeed, err := fp.ParseURL(feedUrl)
 	if err != nil {
 		logger.Error("couldn't parse RSS URL", zap.Error(err))
-		return nil
+		return nil, err
 	}
 
 	return &rssFeed{
 		feed: newfeed,
 
 		Logger: logger,
-	}
+	}, nil
 }
 
 func sendMail(rf *rssFeed) {
