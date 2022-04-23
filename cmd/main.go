@@ -11,9 +11,11 @@ import (
 	"github.com/mmcdole/gofeed"
 	"database/sql"
 	_ "github.com/mattn/go-sqlite3"
-	"rss-snail/models"
+	"github.com/JoeyDrew/rss-snail/models"
 
 )
+
+
 
 // refactor into models.go
 type rssFeed struct {
@@ -25,12 +27,17 @@ type rssFeed struct {
 
 func main() {
 
-	models.DB, err := sql.Open("sqlite3", "./testdb.db")
+	models.DB, err = sql.Open("sqlite3", "./testdb.db")
+	if err != nil {
+        log.Fatal(err)
+    }
 
 	// initialize our 3 tables, I don't think this will work but it's a nice sentiment
-	statement, _ := database.Prepare("CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, email TEXT) ;
-	                                  CREATE TABLE IF NOT EXISTS userfeeds (userid INTEGER PRIMARY KEY, feedid INTEGER PRIMARY KEY) ;
-	                                  CREATE TABLE IF NOT EXISTS feeds (id INTEGER PRIMARY KEY, Url TEXT)")
+	statement, _ := models.DB.Prepare("CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, email TEXT)")
+
+	/* CREATE TABLE IF NOT EXISTS userfeeds (userid INTEGER PRIMARY KEY, feedid INTEGER PRIMARY KEY) ;
+	CREATE TABLE IF NOT EXISTS feeds (id INTEGER PRIMARY KEY, Url TEXT)") */
+
 	statement.Exec()
 
 	// this will get refactored
